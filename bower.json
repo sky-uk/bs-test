@@ -10,6 +10,7 @@
   "moduleType": [
     "amd"
   ],
+  "ignore": [],
   "keywords": [
     "Brightscript",
     "Roku",

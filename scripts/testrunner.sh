@@ -6,8 +6,8 @@ test_results_file=$3
 
 echo "*** Starting Testing ***"
 
-# Run tests
-$2/runtests.sh $ip | tee out.tmp
+# Run tests - set default timeout to 30
+$2/runtests.sh $ip ${TESTRUNNER_TIMEOUT:=10}| tee out.tmp
 wait
 
 # convert to xUnit

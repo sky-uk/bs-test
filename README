@@ -89,3 +89,13 @@ tearDown methods are not currently supported.  If there is
 a high demand for these features, this decision will also
 be re-evaluated.
 
+*Scripts
+The scripts inside the scripts folder are there to parse 
+the test output from telnet and convert it into xunit style 
+output for use with various CI tools. The runtests script uses 
+expect which has a default timeout of 10 seconds before 
+terminating - once the script has completed it will close the app.
+If you need to debug tests a longer timeout can be set by setting
+the TESTRUNNER_TIMEOUT environment variable to a larger value 
+(or a value of -1 is an infinite timeout).
+

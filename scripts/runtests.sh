@@ -2,8 +2,11 @@
 
 set ip [lindex $argv 0]
 
-log_user 0
+set timeout [lindex $argv 1]
 
+send_user "Using a timeout of: $timeout \n"
+
+log_user 0
 
 send_user "Launching the App...\n"
 spawn curl -d "" http://$ip:8060/launch/dev

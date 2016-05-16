@@ -1,6 +1,6 @@
 {
   "name": "brs-test",
-  "version": "1.0.0",
+  "version": "3.0.1",
   "homepage": "https://github.com/MarkRoddy/brstest",
   "authors": [
     "https://github.com/MarkRoddy"
@@ -10,6 +10,7 @@
   "moduleType": [
     "amd"
   ],
+  "ignore": ["source/**/*", "!source/brstest.brs"],
   "keywords": [
     "Brightscript",
     "Roku",

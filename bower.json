@@ -5,12 +5,12 @@
   "authors": [
     "https://github.com/MarkRoddy"
   ],
-  "description": "brsttest - A unit testing framework for the BrightScript programming,
-  language used in development for the Roku Digital Video Player",
+  "description": "brsttest - A unit testing framework for the BrightScript programming language",
   "main": "main.brs",
   "moduleType": [
     "amd"
   ],
+  "ignore": [],
   "keywords": [
     "Brightscript",
     "Roku",

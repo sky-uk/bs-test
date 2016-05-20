@@ -33,9 +33,10 @@
 '  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 '  OTHER DEALINGS IN THE SOFTWARE.
 
-Sub BrsTestMain(socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string)
+Sub BrsTestMain(socket=Invalid as Object, propegateErrors=False as Boolean, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string)
 
     if socket <> Invalid AND socket.isConnected() then m.socket = socket
+    m._propegateErrors = propegateErrors
 
     'Run all test fixtures found in the package using
     'the standard naming conventions
@@ -176,9 +177,6 @@ Sub brstTcInit(Fixture as object)
 
     'Attributes
     m._Fixture = Fixture
-    'this will be constructor argument in future version
-    m._PropegateErrors = false
-    ' m._PropegateErrors = true
 
     'Assertion methods which determine test failure
     m.fail = brstTcFail

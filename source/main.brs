@@ -2,6 +2,7 @@
 
 ' Version using regular print statements
 function main()
+  RokitoMain()
   BrsTestMain()
 end function
 

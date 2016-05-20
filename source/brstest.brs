@@ -33,15 +33,15 @@
 '  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 '  OTHER DEALINGS IN THE SOFTWARE.
 
-Sub BrsTestMain(socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string)
+Sub BrsTestMain(PropagateErrors=False as Boolean, Socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string)
 
-    if socket <> Invalid AND socket.isConnected() then m.socket = socket
+    if Socket <> Invalid AND Socket.isConnected() then m.Socket = Socket
 
     'Run all test fixtures found in the package using
     'the standard naming conventions
     'Discovers and runs test fixtures based upon the supplied arguments
     tl = brstNewTestLoader(TestFilePrefix, TestMethodPrefix)
-    suite=tl.suiteFromDirectory(TestDirectory)
+    suite=tl.suiteFromDirectory(PropagateErrors, TestDirectory)
     runner=brstNewTextTestRunner()
     runner.run(suite)
 End Sub
@@ -165,20 +165,18 @@ End Function
 'A class that manages running a single test fixture as well
 'as determining it's outcome.  An instance of this class is
 'passed to each test fixture method.
-Function brstNewTestCase(Fixture as object) as object
+Function brstNewTestCase(PropagateErrors as Boolean, Fixture as object) as object
     new_case=CreateObject("roAssociativeArray")
     new_case.init = brstTcInit
-    new_case.init(Fixture)
+    new_case.init(PropagateErrors, Fixture)
     return new_case
 End Function
 
-Sub brstTcInit(Fixture as object)
+Sub brstTcInit(PropagateErrors as Boolean, Fixture as object)
 
     'Attributes
+    m._PropagateErrors = PropagateErrors
     m._Fixture = Fixture
-    'this will be constructor argument in future version
-    m._PropegateErrors = false
-    ' m._PropegateErrors = true
 
     'Assertion methods which determine test failure
     m.fail = brstTcFail
@@ -258,7 +256,7 @@ Sub brstTcRun(result as object)
     result.startTest(m)
     testMethod = m._Fixture.TestFunc
 
-    if m._PropegateErrors then
+    if m._propagateErrors then
         testMethod(m)
         eval_result = &hFC
     else
@@ -855,7 +853,7 @@ End Function
 'TestCase objects where are ready to run
 Function brstNewTestLoader(TestFilePrefix as string, TestMethodPrefix as string) as Object
     ldr=CreateObject("roAssociativeArray")
-
+    
     ldr.testFilePrefix = TestFilePrefix
     ldr.testMethodPrefix = TestMethodPrefix
     ldr.NewSuite = brstNewTestSuite
@@ -874,12 +872,12 @@ Function brstNewTestLoader(TestFilePrefix as string, TestMethodPrefix as string)
     return ldr
 End Function
 
-Function brstTlSuiteFromDirectory(fromdirectory as String) as object
+Function brstTlSuiteFromDirectory(propagateErrors as Boolean, fromdirectory as String) as object
     'Returns a test suite containing all test fixtures found in
     'the specified path
     cases = CreateObject("roList")
     for each fixture in m.fixturesFromDirectory(fromdirectory)
-        case = m.NewTestCase(fixture)
+        case = m.NewTestCase(propagateErrors, fixture)
         cases.addtail(case)
     end for
     suite = m.NewSuite(cases)

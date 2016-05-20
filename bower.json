@@ -10,7 +10,7 @@
   "moduleType": [
     "amd"
   ],
-  "ignore": ["source/**/*", "!source/brstest.brs"],
+  "ignore": ["source/**/*", "!source/brstest.brs", "!source/main.brs"],
   "keywords": [
     "Brightscript",
     "Roku",

@@ -988,7 +988,7 @@ Function brstTlFixturesFromScriptContents(scriptstr as string, scriptpath as str
         boxedline = box(UCase(line))
         boxedline.Trim()
         fobj = invalid
-        if UCase("Function") = boxedline.Left(8) or UCase("Sub") = boxedline.Left(3) then
+        if UCase("Function") = boxedline.trim().Left(8) or UCase("Sub") = boxedline.trim().Left(3) then
             func_def = box(line)
             func_def.Trim()
             tokens = func_def.Tokenize(chr(32))

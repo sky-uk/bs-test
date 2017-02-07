@@ -33,7 +33,7 @@
 '  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 '  OTHER DEALINGS IN THE SOFTWARE.
 
-Sub BrsTestMain(PropagateErrors=False as Boolean, Socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string)
+Sub BrsTestMain(PropagateErrors=False as Boolean, Socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string, verbosity=1 as Integer)
 
     if Socket <> Invalid AND Socket.isConnected() then m.Socket = Socket
 
@@ -42,7 +42,7 @@ Sub BrsTestMain(PropagateErrors=False as Boolean, Socket=Invalid as Object, Test
     'Discovers and runs test fixtures based upon the supplied arguments
     tl = brstNewTestLoader(TestFilePrefix, TestMethodPrefix)
     suite=tl.suiteFromDirectory(PropagateErrors, TestDirectory)
-    runner=brstNewTextTestRunner()
+    runner=brstNewTextTestRunner(verbosity)
     runner.run(suite)
 End Sub
 
@@ -792,10 +792,11 @@ End Sub
 'Begin Class TextTestResult
 'A class which runs tests and reports their results in a
 'textual format to the debug console
-Function brstNewTextTestRunner() as object
+'verbosity: if <2 Do not print method names; if >1 print the method names
+Function brstNewTextTestRunner(verbosity as Integer) as object
     new_runner = CreateObject("roAssociativeArray")
     new_runner.init = brstTtrnInit
-    new_runner.init(1,1)
+        new_runner.init(1,verbosity)
     return new_runner
 End Function
 
@@ -853,7 +854,7 @@ End Function
 'TestCase objects where are ready to run
 Function brstNewTestLoader(TestFilePrefix as string, TestMethodPrefix as string) as Object
     ldr=CreateObject("roAssociativeArray")
-    
+
     ldr.testFilePrefix = TestFilePrefix
     ldr.testMethodPrefix = TestMethodPrefix
     ldr.NewSuite = brstNewTestSuite

@@ -33,16 +33,16 @@
 '  FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 '  OTHER DEALINGS IN THE SOFTWARE.
 
-Sub BrsTestMain(PropagateErrors=False as Boolean, Socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string, verbosity=1 as Integer)
+Sub BrsTestMain(PropagateErrors=False as Boolean, Socket=Invalid as Object, TestFilePrefix="Test" as string, TestMethodPrefix="test" as string, TestDirectory="pkg:/source" as string, Verbosity=1 as Integer)
 
-    if Socket <> Invalid AND Socket.isConnected() then m.Socket = Socket
+     if socket <> Invalid AND socket.isConnected() then m.socket = socket
 
     'Run all test fixtures found in the package using
     'the standard naming conventions
     'Discovers and runs test fixtures based upon the supplied arguments
     tl = brstNewTestLoader(TestFilePrefix, TestMethodPrefix)
-    suite=tl.suiteFromDirectory(PropagateErrors, TestDirectory)
-    runner=brstNewTextTestRunner(verbosity)
+    suite=tl.suiteFromDirectory(TestDirectory, PropagateErrors)
+    runner=brstNewTextTestRunner(Verbosity)
     runner.run(suite)
 End Sub
 
@@ -165,18 +165,19 @@ End Function
 'A class that manages running a single test fixture as well
 'as determining it's outcome.  An instance of this class is
 'passed to each test fixture method.
-Function brstNewTestCase(PropagateErrors as Boolean, Fixture as object) as object
+Function brstNewTestCase(Fixture as object, PropagateErrors=false as Boolean) as object
     new_case=CreateObject("roAssociativeArray")
     new_case.init = brstTcInit
-    new_case.init(PropagateErrors, Fixture)
+    new_case.init(Fixture, PropagateErrors)
     return new_case
 End Function
 
-Sub brstTcInit(PropagateErrors as Boolean, Fixture as object)
+Sub brstTcInit(Fixture as object, PropagateErrors=false as Boolean)
 
     'Attributes
-    m._PropagateErrors = PropagateErrors
     m._Fixture = Fixture
+    'this will be constructor argument in future version
+    m._PropagateErrors = PropagateErrors
 
     'Assertion methods which determine test failure
     m.fail = brstTcFail
@@ -197,24 +198,20 @@ Sub brstTcInit(PropagateErrors as Boolean, Fixture as object)
     'String Casting Functionality
     m.valueToString = brstTcValueToString
     m.assocArrayToString = brstTcAssocArrayToString
-    m.integerToString = brstTcIntegerToString
-    m.floatToString = brstTcFloatToString
+    m.nodeToString = brstTcNodeToString
+    m.numericToString = brstTcNumericToString
     m.stringToString = brstTcStringToString
     m.booleanToString = brstTcBooleanToString
     m.roListToString = brstTcRoListToString
     m.roArrayToString = brstTcRoArrayToString
+    m.roFunctionToString = brstTcRoFunctionToString
     m.roInvalidToString = brstTcRoInvalidToString
 
     'Type Comparison Functionality
+    m.isNumericType = brstTcIsNumeric
     m.eqValues = brstTcEqValues
-    m.eqIntegers = brstTcEqInteger
-    m.eqFloats = brstTcEqFloat
-    m.eqStrings = brstTcEqString
-    m.eqBools = brstTcEqBool
-    m.eqLists = brstTcEqList
+    m.eqArrayOrList = brstTcEqArrayOrList
     m.eqAssocArrays = brstTcEqAssocArray
-    m.eqArrays = brstTcEqArray
-    m.eqFunction = brstTcEqFunction
 
 End Sub
 
@@ -340,10 +337,8 @@ Function brstTcValueToString(SrcValue as Object) as String
     'for more information on the issue:
     'http://forums.roku.com/viewtopic.php?f=34&t=27338
     value_type = type(SrcValue)
-    if value_type = "roInt" then
-        return m.integerToString(SrcValue)
-    else if value_type = "roFloat" then
-        return m.floatToString(SrcValue)
+    if m.isNumericType(value_type)
+        return m.numericToString(SrcValue)
     else if value_type = "roString" then
         return m.stringToString(SrcValue)
     else if value_type = "roBoolean" then
@@ -352,8 +347,12 @@ Function brstTcValueToString(SrcValue as Object) as String
         return m.roListToString(SrcValue)
     else if value_type = "roAssociativeArray" then
         return m.assocArrayToString(SrcValue)
+    else if value_type = "roSGNode" then
+        return m.nodeToString(SrcValue)
     else if value_type = "roArray" then
         return m.roArrayToString(SrcValue)
+    else if value_type = "roFunction" then
+        return m.roFunctionToString(SrcValue)
     else if value_type = "roInvalid" then
         return m.roInvalidToString(SrcValue)
     else
@@ -361,14 +360,9 @@ Function brstTcValueToString(SrcValue as Object) as String
     end if
 End Function
 
-Function brstTcIntegerToString(SrcInt as Object) as String
-    'Converts an roInt to a string
-    return SrcInt.ToStr()
-End Function
-
-Function brstTcFloatToString(SrcFloat as Object) as String
-    'Converts an roFloat object to a string
-    return Box(Str(SrcFloat.GetFloat())).Trim()
+Function brstTcNumericToString(SrcNumeric as Object) as String
+    'Converts a numeric literal to a string
+    return SrcNumeric.ToStr()
 End Function
 
 Function brstTcStringToString(SrcStr as Object) as String
@@ -385,6 +379,11 @@ Function brstTcBooleanToString(SrcBool as Object) as String
     else
         return "False"
     end if
+End Function
+
+Function brstTcRoFunctionToString(SrcFunction as Object) as String
+    'Convert roFunction value to string
+    return SrcFunction.toStr()
 End Function
 
 Function brstTcRoInvalidToString(InvalidObj as Object) as String
@@ -412,11 +411,39 @@ Function brstTcRoListToString(SrcList as Object) as String
     return strvalue
 End Function
 
+Function brstTcNodeToString(SrcNode as Object) as String
+    'Converts an roSGNode to a string representation
+    strvalue = "{ "
+    first_entry = True
+    keys = SrcNode.getFields()
+    for each k in keys
+        if not first_entry then
+            strvalue = strvalue + ", "
+        else
+            first_entry = False
+        end if
+        strvalue = strvalue + k
+        strvalue = strvalue + " : "
+
+        'handle basic self-refs
+        if type(SrcNode[k]) = "roSGNode" and SrcNode[k].isSameNode(SrcNode) then
+            strvalue = strvalue + "(self)"
+        else
+            strvalue = strvalue + m.ValueToString(SrcNode[k])
+        end if
+    end for
+    strvalue = strvalue + " }"
+    return strvalue
+    return "{}"
+End Function
+
+
 Function brstTcAssocArrayToString(SrcAssocArray as Object) as String
     'Converts an roAssociativeArray to a string representation
     strvalue = "{ "
     first_entry = True
-    for each k in SrcAssocArray
+    keys = SrcAssocArray.keys()
+    for each k in keys
         if not first_entry then
             strvalue = strvalue + ", "
         else
@@ -458,69 +485,30 @@ End Function
 Function brstTcEqValues(Value1 as Object, Value2 as Object) as Boolean
     'Compare two arbtrary values to eachother
 
-    'Upcast int to float, if other is float
-    if type(Value1) = "roFloat" and type(Value2) = "roInt"
-        Value2 = box(Cdbl(Value2))
-    else if type(Value2) = "roFloat" and type(Value1) = "roInt"
-        Value1 = box(Cdbl(Value1))
-    end if
+    valtype = type(Value1)
 
-    if type(Value1) <> type(Value2) then
-        return False
-    else
-        'A dispatch table would be better approach here than
-        'this switch/case like approach, but one was attempted
-        'and needed to be abandonded due to a bug in the only
-        'mechinism of doing so.  See the following forum thread
-        'for more information on the issue:
-        'http://forums.roku.com/viewtopic.php?f=34&t=27338
-        valtype = type(Value1)
-        if valtype = "roInt" then
-            return m.eqIntegers(Value1, Value2)
-        else if valtype = "roFloat" then
-            return m.eqFloats(Value1, Value2)
-        else if valtype = "roString" then
-            return m.eqStrings(Value1, Value2)
-        else if valtype = "roBoolean" then
-            return m.eqBools(Value1, Value2)
-        else if valtype = "roList" then
-            return m.eqLists(Value1, Value2)
-        else if valtype = "roAssociativeArray" then
+    if (m.isNumericType(valType) AND m.isNumericType(type(Value2)))
+        return Value1 = Value2
+    else if valtype = type(Value2)
+        if valtype = "roArray" or valtype = "roList" or valType = "roByteArray"
+            return m.eqArrayOrList(Value1, Value2)
+        else if valtype = "roAssociativeArray"
             return m.eqAssocArrays(Value1, Value2)
-        else if valtype = "roArray" then
-            return m.eqArrays(Value1, Value2)
-        else if valtype = "roFunction" then
-            return m.eqFunction(Value1, Value2)
+        else if valtype = "roSGNode"
+            return Value1.isSameNode(Value2)
         else
-            'todo: This isn't the best approach to
-            'handling an unknown type, but will
-            'suffice for now
-            return False
+            return Value1 = Value2
         end if
     end if
+
+    return False
 End Function
 
-Function brstTcEqInteger(Value1 as Object, Value2 as Object) as Boolean
-    'Compare to integer objects for equality
-    return Value1 = Value2
+Function brstTcIsNumeric(valType as String) as Boolean
+    return valType = "roInt" or valType = "roFloat" or valType = "roDouble" or valType = "Double" or valType = "LongInteger"
 End Function
 
-Function brstTcEqFloat(Value1 as Object, Value2 as Object) as Boolean
-    'Compare to float objects for equality
-    return Value1 = Value2
-End Function
-
-Function brstTcEqString(Value1 as Object, Value2 as Object) as Boolean
-    'Compare to string objects for equality
-    return Value1 = Value2
-End Function
-
-Function brstTcEqBool(Value1 as Object, Value2 as Object) as Boolean
-    'Compare to boolean objects for equality
-    return Value1 = Value2
-End Function
-
-Function brstTcEqList(Value1 as Object, Value2 as Object) as Boolean
+Function brstTcEqArrayOrList(Value1 as Object, Value2 as Object) as Boolean
     'Compare to roList objects for equality
     l1 = Value1.Count()
     l2 = Value2.Count()
@@ -540,48 +528,22 @@ End Function
 
 Function brstTcEqAssocArray(Value1 as Object, Value2 as Object) as Boolean
     'Compare to roAssociativeArray objects for equality
-    len1 = 0
-    for each k in Value1
-        len1 = len1 + 1
-        if not Value2.DoesExist(k) then
-            return False
-        else
-            v1 = Value1[k]
-            v2 = Value2[k]
-            if not m.eqValues(v1, v2) then
+    if Value1.count() = Value2.count()
+        for each k in Value1
+            if not Value2.DoesExist(k) then
                 return False
-            end if
-        end if
-    end for
-    len2 = AssocArrayCount(Value2)
-    if len1 <> len2 then
-        return False
-    else
-        return True
-    end if
-End Function
-
-Function brstTcEqArray(Value1 as Object, Value2 as Object) as Boolean
-    'Compare to roArray objects for equality
-    l1 = Value1.Count()
-    l2 = Value2.Count()
-    if not l1 = l2 then
-        return False
-    else
-        for i = 0 to l1 - 1 step 1
-            v1 = Value1[i]
-            v2 = Value2[i]
-            if not m.eqValues(v1, v2) then
-                return False
+            else
+                v1 = Value1[k]
+                v2 = Value2[k]
+                if not m.eqValues(v1, v2) then
+                    return False
+                end if
             end if
         end for
         return True
+    else
+        return False
     end if
-End Function
-
-Function brstTcEqFunction(Value1 as Object, Value2 as Object) as Boolean
-    'Compare two function pointers (?) for equality
-    return Value1 = Value2
 End Function
 
 
@@ -873,12 +835,12 @@ Function brstNewTestLoader(TestFilePrefix as string, TestMethodPrefix as string)
     return ldr
 End Function
 
-Function brstTlSuiteFromDirectory(propagateErrors as Boolean, fromdirectory as String) as object
+Function brstTlSuiteFromDirectory(fromdirectory as String, PropagateErrors=false as Boolean) as object
     'Returns a test suite containing all test fixtures found in
     'the specified path
     cases = CreateObject("roList")
     for each fixture in m.fixturesFromDirectory(fromdirectory)
-        case = m.NewTestCase(propagateErrors, fixture)
+        case = m.NewTestCase(fixture, PropagateErrors)
         cases.addtail(case)
     end for
     suite = m.NewSuite(cases)
@@ -1010,35 +972,94 @@ End Function
 
 Function ErrorMessageFromCode(err_code as integer) as string
     'Translate a BrightScript error code as returned by eval() into a meaningful
-    'error message
-err_map = CreateObject("roAssociativeArray")
-err_map.AddReplace("Use of uninitialized variable (ERR_USE_OF_UNINIT_VAR)",&hE9)
-err_map.AddReplace("ERR_DIV_ZERO", &h14)
-err_map.AddReplace("Type Mismatch (ERR_TM)", &h18)
-err_map.AddReplace("ERR_USE_OF_UNINIT_VAR",  &hE9)
-err_map.AddReplace("Member function not found in BrightScript Component or interface (ERR_RO2)", &hF4)
-err_map.AddReplace("'Dot' Operator attempted with invalid BrightScript Component or interface reference (ERR_RO4)", &hEC)
-err_map.AddReplace("ERR_SYNTAX", 2)
-err_map.AddReplace("ERR_NORMAL_END (Not an error)",&hFC)
-err_map.AddReplace("ERR_VALUE_RETURN (Not an error)", &hE2)
-err_map.AddReplace("Wrong number of function parameters.", &hF1)
-err_map.AddReplace("Explicit 'STOP' command encountered", &hF7)
-err_map.AddReplace("Function Call Operator ( ) attempted on non-function.", &he0)
-    for each e in err_map
-        if err_map[e] = err_code then
-           return e
-        end if
-    end for
-    return "Unknown Error: " + str(err_code)
-End Function
+    'error message.
+    'Ref: https://forums.roku.com/viewtopic.php?t=33193#p211138
+    if m.err_map = invalid then
+        m.err_map = {}
+        m.err_map[str(&hfc)] = "ERR_OKAY"
+        m.err_map[str(&hFC)] = "[Not an error] Normal, but terminate execution; END, shell 'exit', window closed, etc. (ERR_NORMAL_END)"
+        m.err_map[str(&hE2)] = "[Not an error] Return executed, and a value returned on the stack (ERR_VALUE_RETURN)"
+        m.err_map[str(&hFE)] = "ERR_INTERNAL"
+        m.err_map[str(&hFD)] = "Opcode that Roku does not handle (ERR_UNDEFINED_OPCD)"
+        m.err_map[str(&hFB)] = "Expression operator that Roku does not handle (ERR_UNDEFINED_OP)"
+        m.err_map[str(&hFA)] = "ERR_MISSING_PARN"
+        m.err_map[str(&hF9)] = "Nothing on stack to pop (ERR_STACK_UNDER)"
+        m.err_map[str(&hF8)] = "scriptBreak() called (ERR_BREAK)"
+        m.err_map[str(&hF7)] = "Explicit 'STOP' command encountered (ERR_STOP)"
+        m.err_map[str(&hF6)] = "bscNewComponent failed because object class not found (ERR_RO0)"
+        m.err_map[str(&hF5)] = "ro function call does not have the right number of parameters (ERR_RO1)"
+        m.err_map[str(&hF4)] = "Member function not found in BrightScript Component or interface (ERR_RO2)"
+        m.err_map[str(&hF3)] = "Interface not a member of object (ERR_RO3)"
+        m.err_map[str(&hF2)] = "Too many function parameters for BrightScript to handle (ERR_TOO_MANY_PARAM)"
+        m.err_map[str(&hF1)] = "Wrong number of function parameters (ERR_WRONG_NUM_PARAM)"
+        m.err_map[str(&hF0)] = "Function returns a value, but is ignored (ERR_RVIG)"
+        m.err_map[str(&hEF)] = "Non-printable value (ERR_NOTPRINTABLE)"
+        m.err_map[str(&hEE)] = "Tried to Wait on a function without the ifMessagePort interface (ERR_NOTWAITABLE)"
+        m.err_map[str(&hED)] = "Interface calls from rotINTERFACE must be static (ERR_MUST_BE_STATIC)"
+        m.err_map[str(&hEC)] = "'Dot' Operator attempted with invalid BrightScript Component or interface reference (ERR_RO4)"
+        m.err_map[str(&hEB)] = "Operation on two typeless operands attempted (ERR_NOTYPEOP)"
+        m.err_map[str(&hE9)] = "Use of uninitialized variable (ERR_USE_OF_UNINIT_VAR)"
+        m.err_map[str(&hE8)] = "Non-numeric array index (ERR_TM2)"
+        m.err_map[str(&hE7)] = "ERR_ARRAYNOTDIMMED"
+        m.err_map[str(&hE6)] = "Uninitialized reference to SUB (ERR_USE_OF_UNINIT_BRSUBREF)"
+        m.err_map[str(&hE5)] = "ERR_MUST_HAVE_RETURN"
+        m.err_map[str(&hE4)] = "Invalid left side of expression (ERR_INVALID_LVALUE)"
+        m.err_map[str(&hE3)] = "Invalid number of array indices (ERR_INVALID_NUM_ARRAY_IDX)"
+        m.err_map[str(&hE1)] = "ERR_UNICODE_NOT_SUPPORTED"
+        m.err_map[str(&hE0)] = "Function Call Operator ( ) attempted on non-function (ERR_NOTFUNOPABLE)"
+        m.err_map[str(&hDF)] = "Stack overflow (ERR_STACK_OVERFLOW)"
+        m.err_map[str(&h02)] = "Syntax error (ERR_SYNTAX)"
+        m.err_map[str(&h14)] = "Divide by zero (ERR_DIV_ZERO)"
+        m.err_map[str(&h0E)] = "ERR_MISSING_LN"
+        m.err_map[str(&h0C)] = "ERR_OUTOFMEM"
+        m.err_map[str(&h1C)] = "ERR_STRINGTOLONG"
+        m.err_map[str(&h18)] = "Type Mismatch (ERR_TM)"
+        m.err_map[str(&h1A)] = "Out of string space (ERR_OS)"
+        m.err_map[str(&h04)] = "Return without Gosub (ERR_RG)"
+        m.err_map[str(&h00)] = "Next statement encountered without matching For (ERR_NF)"
+        m.err_map[str(&h08)] = "Invalid parameter passed to function or array (ERR_FC)"
+        m.err_map[str(&h12)] = "Attempted to redim an array (ERR_DD)"
+        m.err_map[str(&h10)] = "Array subscript out of bounds (ERR_BS)"
+        m.err_map[str(&h06)] = "Out of data during READ operation (ERR_OD)"
+        m.err_map[str(&h20)] = "Continue not allowed (ERR_CN)"
+        m.err_map[str(&hBF)] = "EndWhile statement encountered without matching While (ERR_NW)"
+        m.err_map[str(&hBE)] = "While statement encountered without matching EndWhile (ERR_MISSING_ENDWHILE)"
+        m.err_map[str(&hBC)] = "If statement encountered without matching EndIf (ERR_MISSING_ENDIF)"
+        m.err_map[str(&hBB)] = "No line number found (ERR_NOLN)"
+        m.err_map[str(&hBA)] = "Line number sequence error (ERR_LNSEQ)"
+        m.err_map[str(&hB9)] = "Error loading a file (ERR_LOADFILE)"
+        m.err_map[str(&hB8)] = "'Match' statement did not match (ERR_NOMATCH)"
+        m.err_map[str(&hB7)] = "String being compiled ended unexpectedly - missing end of block? (ERR_UNEXPECTED_EOF)"
+        m.err_map[str(&hB6)] = "Variable on NEXT does not match the corresponding FOR (ERR_FOR_NEXT_MISMATCH)"
+        m.err_map[str(&hB5)] = "ERR_NO_BLOCK_END"
+        m.err_map[str(&hB4)] = "Label defined more than once (ERR_LABELTWICE)"
+        m.err_map[str(&hB3)] = "Literal string does not have ending quote (ERR_UNTERMED_STRING)"
+        m.err_map[str(&hB2)] = "ERR_FUN_NOT_EXPECTED"
+        m.err_map[str(&hB1)] = "ERR_TOO_MANY_CONST"
+        m.err_map[str(&hB0)] = "ERR_TOO_MANY_VAR"
+        m.err_map[str(&hAF)] = "ERR_EXIT_WHILE_NOT_IN_WHILE"
+        m.err_map[str(&hAE)] = "ERR_INTERNAL_LIMIT_EXCEDED"
+        m.err_map[str(&hAD)] = "ERR_SUB_DEFINED_TWICE"
+        m.err_map[str(&hAC)] = "ERR_NOMAIN"
+        m.err_map[str(&hAB)] = "ERR_FOREACH_INDEX_TM"
+        m.err_map[str(&hAA)] = "ERR_RET_CANNOT_HAVE_VALUE"
+        m.err_map[str(&hA9)] = "ERR_RET_MUST_HAVE_VALUE"
+        m.err_map[str(&hA8)] = "ERR_FUN_MUST_HAVE_RET_TYPE"
+        m.err_map[str(&hA7)] = "ERR_INVALID_TYPE"
+        m.err_map[str(&hA6)] = "No longer supported (ERR_NOLONGER)"
+        m.err_map[str(&hA5)] = "ERR_EXIT_FOR_NOT_IN_FOR"
+        m.err_map[str(&hA4)] = "ERR_MISSING_INITILIZER"
+        m.err_map[str(&hA3)] = "ERR_IF_TOO_LARGE"
+        m.err_map[str(&hA2)] = "ERR_RO_NOT_FOUND"
+        m.err_map[str(&hA1)] = "ERR_TOO_MANY_LABELS"
+        m.err_map[str(&hA0)] = "ERR_VAR_CANNOT_BE_SUBNAME"
+        m.err_map[str(&h9F)] = "ERR_INVALID_CONST_NAME"
+    end if
 
-'Have posted to the Roku sdk message board regarding the need for this function,
-'retaining for the time being to determine if it's necessary
-Function AssocArrayCount(aa as object) as Integer
-    'Returns the number of entries in an roAssociativeArray
-    i = 0
-    for each k in aa
-        i = i + 1
-    end for
-    return i
+    errMsg = m.err_map[str(err_code)]
+    if errMsg = invalid then
+        errMsg = "Unknown Error: " + str(err_code)
+    end if
+
+    return errMsg
 End Function
